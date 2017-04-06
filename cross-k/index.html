@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Understanding the cross-K function</title>
+    <style>      
+       #container {
+      width: 300px;
+      text-align: float;
+      font-family: sans-serif;
+      }
+      
+      .axis path,
+      .axis line {
+	fill: none;
+	stroke: grey;
+	shape-rendering: crispEdges;
+      }
+      .dot {
+	stroke: #0F0;
+      }
+      .area {
+	fill: #feffd1;
+	stroke: grey;
+	stroke-width: 0.5;
+      }
+      .theoretical {
+	stroke: red;
+      }
+      .observed {
+      }
+      .simulationMean {
+	stroke: red;
+      }
+      .simulationEnvelope {
+	fill: #f2f2f2;
+      }
+      .plot {
+	width: 200px;
+	position: center;
+      }
+      circle.dot {
+	fill: #F00;
+	stroke-width: 0.5px;
+      }
+      .legend rect {
+	fill:white;
+	stroke:black;
+	opacity:0.8;
+      }
+
+      
+      path {
+	fill: none;
+	stroke: grey;
+      }
+
+    </style>
+</head>
+
+<body>
+
+      <div id="container">
+	  <form action="">
+	      <input type="radio" name="pp" value="1" onclick="changePlots(this);" checked="checked"> 1
+	      <input type="radio" name="pp" value="2" onclick="changePlots(this);"> 2
+	      <input type="radio" name="pp" value="3" onclick="changePlots(this);"> 3
+	      <input type="radio" name="pp" value="4" onclick="changePlots(this);"> 4
+	  </form>
+      <div id="pp" class="plot">Point Pattern</div>
+	<div id="crossK" class="plot">Cross-K function</div>
+	<div id="simulation" class="plot"><br />Significance testing with Monte Carlo simulation</div>
+      </div>
+</body>
+
+
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="legend.js"></script>
+<script src="http://dimplejs.org/dist/dimple.v2.3.0.min.js"></script>
+
+<script>
+
+var width, height, margin, pointPlot, crossKPlot, simulPlot, observedLine, theoreticalLine, simulEnvelope, x_scatter, y_scatter, xCross, yCross, currPattern;
+
+function init() {
+
+
+  currPattern = 1;
+  
+  
+  margin = {top: 20, right: 20, bottom: 30, left: 40}
+
+  width = 200 - margin.left - margin.right;
+  height = 200 - margin.top - margin.bottom;
+  
+  x_scatter = d3.scale.linear().range([0, width]);
+  y_scatter = d3.scale.linear().range([height, 0]);
+  
+  var xAxis = d3.svg.axis().scale(x_scatter)
+      .orient("bottom").ticks(5);
+  var yAxis = d3.svg.axis().scale(y_scatter)
+      .orient("left").ticks(5);
+   
+   
+   // Add points
+   pointPlot = d3.select("#pp").append("svg")
+	.attr({
+	  "width": width + margin.left + margin.right,
+	  "height": height + margin.top + margin.bottom
+	})
+      .append("g")
+	.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    d3.json("data.json", function(error, data) {
+	data.forEach(function(d) { 
+	//  console.log(d);
+	  d.x_1 = +d.geom_1.x;
+	  d.y_1 = +d.geom_1.y;
+	  d.x_2 = +d.geom_2.x;
+	  d.y_2 = +d.geom_2.y;
+	  d.x_3 = +d.geom_3.x;
+	  d.y_3 = +d.geom_3.y;
+	  d.x_4 = +d.geom_4.x;
+	  d.y_4 = +d.geom_4.y;
+	});
+
+    x_scatter.domain([-10, 10]);
+    y_scatter.domain([-10, 10]);
+    
+
+    pointPlot.append("circle")
+	.attr("class", "area")
+	.attr("r", width / 2 + 10)
+	.attr("cx", x_scatter(0))
+	.attr("cy", y_scatter(0));
+    
+    pointPlot.selectAll("dot")
+	.data(data)
+	.enter().append("circle")
+	  .attr("r", 4)
+	  .attr("class", "dot")
+	  .attr("cx", function(d) { return x_scatter(d.x_1); })
+	  .attr("cy", function(d) { return y_scatter(d.y_1); })
+	  .style("fill", function(d) {
+	      if (d.type == 'A') { return "#f26363"; }
+	      else return "#66c0f4";
+	  });
+	  
+ /*   var pointLegend = pointPlot.append("g").data([{text: "A", color: "red"},{text: "B", color: "blue"}])
+	  .enter()
+	  .append("g")
+	  .attr("class", "legend")
+	  .style("fill", function(d) { console.log(d); return d.color; })
+	  .attr("transform", "translate(30,30)");
+    pointLegend.append("rect")
+      .attr("width", 30)
+      .attr("height", 30)
+      .style("fill", "red")
+      .style("stroke", "blue");
+    pointLegend.append("text")
+	.attr("x", 35)
+	.attr("y", 35)
+	.text("eee");
+*/
+
+/*
+      pointLegendData = d3.scale.category20().domain([{text: "A", color: "red"},{text: "B", color: "blue"}]);
+      
+      var legendP = d3.svg.legend()
+	  .labelFormat("none")
+	   .cellPadding(2)
+	   .orientation("vertical")
+	   .units("Type")
+	   .cellWidth(20)
+	   .cellHeight(15)
+	   .inputScale(pointLegendData)
+	  .cellStepping(10);
+	  
+      pointPlot.append("svg")
+	  .attr("transform", "translate(50, 100)")
+	  .attr("class", "legend")
+	  .call(legendP);
+	  */
+
+      }); 
+      
+      
+	                               
+ 
+ // Add crossK plot
+ 
+  xCross = d3.scale.linear().range([0, width]);
+  yCross = d3.scale.linear().range([height, 0]);
+  
+  var xAxisCross = d3.svg.axis().scale(xCross)
+      .orient("bottom").ticks(5);
+  var yAxisCross = d3.svg.axis().scale(yCross)
+      .orient("left").ticks(5);
+ 
+  theoreticalLine = d3.svg.line()
+      .x(function(d) { return xCross(d.r); })
+      .y(function(d) { return yCross(d.theoretical); });
+  
+  observedLine = d3.svg.line()
+      .x(function(d) { return xCross(d.r); })
+      .y(function(d) { 
+	  var column = "observed_" + currPattern;
+	  return yCross(d[column]); 
+      });
+      
+   crossKPlot = d3.select("#crossK").append("svg")
+	.attr({
+	  "width": width + margin.left + margin.right,
+	  "height": height + margin.top + margin.bottom
+	})
+      .append("g")
+	.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    d3.csv("crossk_out.csv", function(error, data) {
+	data.forEach(function(d) { 
+	//  console.log(d);
+	  d.r = +d.r;
+	  d.theoretical = +d.theoretical;
+	});
+
+    xCross.domain([0, 5]);
+    //yCross.domain([0, d3.max(data, function(d) { return d.observed_4; })]);
+     yCross.domain([0, 150]);
+    
+    crossKPlot.append("g")
+	.attr("class", "x axis")
+	.attr("transform", "translate(0," + height + ")")
+	.call(xAxisCross)
+    crossKPlot.append("g")
+	.attr("class", "y axis")
+	.call(yAxisCross)
+  
+    crossKPlot.append("path")
+	.attr("class", "theoretical")
+	.attr("stroke-width", 2)
+	.attr("stroke", "blue")
+	.attr("d", theoreticalLine(data))
+	.style("stroke-dasharray", (3,3));
+    
+    crossKPlot.append("path")
+	.attr("class", "observed")
+	.attr("d", observedLine(data))
+	.attr("stroke-width", 2);
+	
+    crossKPlot.append("text")
+         .attr("text-anchor", "middle")  // this makes it easy to centre the text as the transform is applied to the anchor
+         .attr("transform", "translate(-"+ 30 +","+(height/2)+")rotate(-90)")  // text is drawn off the screen top left, move down and out and rotate
+         .text("Kᵢⱼ (r)");
+    crossKPlot.append("text")
+         .attr("text-anchor", "middle")  // this makes it easy to centre the text as the transform is applied to the anchor
+         .attr("transform", "translate("+ width/2 +"," + (height + 30)  +")")  // text is drawn off the screen top left, move down and out and rotate
+         .text("r");
+    });
+    
+
+    
+    
+    // Add simulation plot
+ 
+  
+  simulMeanLine = d3.svg.line()
+      .x(function(d) { return xCross(d.r); })
+      .y(function(d) { 
+	  var column = "simulation_mean_" + currPattern;
+	  return yCross(d[column]); 
+      });
+      
+   simulEnvelope = d3.svg.area()
+      .interpolate("linear")
+      .x(function(d) { return xCross(d.r); })
+      
+      .y0( function(d) { 
+	  var column = "simulation_low_" + currPattern;
+	  return yCross(d[column]); 
+      })
+      .y1( function(d) { 
+	  var column = "simulation_high_" + currPattern;
+	  return yCross(d[column]); 
+      });
+      
+   simulPlot = d3.select("#simulation").append("svg")
+	.attr({
+	  "width": width + margin.left + margin.right,
+	  "height": height + margin.top + margin.bottom
+	})
+      .append("g")
+	.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    d3.csv("crossk_out.csv", function(error, data) {
+	data.forEach(function(d) { 
+	//  console.log(d);
+	  d.r = +d.r;
+	  d.theoretical = +d.theoretical;
+	  d.obs_1 = +d.observed_1;
+	  d.obs_2 = +d.observed_2;
+	  d.obs_3 = +d.observed_3;
+	  d.obs_4 = +d.observed_4;
+	});
+
+    xCross.domain([0, 5]);
+    //yCross.domain([0, d3.max(data, function(d) { return d.observed_4; })]);
+    yCross.domain([0, 150]);
+    
+    simulPlot.append("g")
+	.attr("class", "x axis")
+	.attr("transform", "translate(0," + height + ")")
+	.call(xAxisCross)
+    simulPlot.append("g")
+	.attr("class", "y axis")
+	.call(yAxisCross)
+	
+    simulPlot.append("path")
+	.attr("class", "area")
+	.attr("d", simulEnvelope(data))
+	.attr("stroke-width", .3);
+  
+    simulPlot.append("path")
+	.attr("class", "simulationMean")
+	.attr("stroke-width", 2)
+	.attr("stroke", "blue")
+	.attr("d", simulMeanLine(data))
+	.style("stroke-dasharray", (3,3));
+    
+    simulPlot.append("path")
+	.attr("class", "observed")
+	.attr("d", observedLine(data))
+	.attr("stroke-width", 2);
+    simulPlot.append("text")
+         .attr("text-anchor", "middle")  // this makes it easy to centre the text as the transform is applied to the anchor
+         .attr("transform", "translate(-"+ 30 +","+(height/2)+")rotate(-90)")  // text is drawn off the screen top left, move down and out and rotate
+         .text("Kᵢⱼ (r)");
+    simulPlot.append("text")
+         .attr("text-anchor", "middle")  // this makes it easy to centre the text as the transform is applied to the anchor
+         .attr("transform", "translate("+ width/2 +"," + (height + 30)  +")")  // text is drawn off the screen top left, move down and out and rotate
+         .text("r");
+    });
+}
+
+function changePlots(pointPattern) {
+    currPattern = pointPattern.value;
+    
+    // Change points
+    pointPlot.selectAll(".dot")
+      .transition()
+      .duration(200)
+      .attr("cx", function(d) { 
+	  var p = "x_" + currPattern;
+	  return x_scatter(d[p]);
+	})
+      .attr("cy", function(d) {
+	  var p = "y_" + currPattern;
+	  return y_scatter(d[p]);
+      });
+  
+  // Change CrossK plot
+  
+  d3.csv("crossk_out.csv", function(error, data) {
+	data.forEach(function(d) { 
+	//  console.log(d);
+	  d.r = +d.r;
+	  d.theoretical = +d.theoretical;
+	});
+	
+  var tmp = d3.select("#crossK").transition();
+  tmp.selectAll(".observed")
+      .transition()
+      .duration(200)
+      .attr("d", observedLine(data));
+   });
+   
+   // Change simulplot
+  
+  d3.csv("crossk_out.csv", function(error, data) {
+	data.forEach(function(d) { 
+	//  console.log(d);
+	  d.r = +d.r;
+	  d.theoretical = +d.theoretical;
+	  d.obs_1 = +d.observed_1;
+	  d.obs_2 = +d.observed_2;
+	  d.obs_3 = +d.observed_3;
+	  d.obs_4 = +d.observed_4;
+	});
+	
+  var tmp2 = d3.select("#simulation").transition();
+  tmp2.selectAll(".observed")
+      .transition()
+      .duration(200)
+      .attr("d", observedLine(data));
+  tmp2.selectAll(".simulationMean")
+      .transition()
+      .duration(200)
+      .attr("d", simulMeanLine(data));
+  tmp2.selectAll(".area")
+      .transition()
+      .duration(200)
+      .attr("d", simulEnvelope(data))
+   });
+
+}
+
+
+function removeAllPoints() {
+   svg.selectAll("circle").transition().duration(200).attr("r", 0).remove();
+}
+
+window.onload = init();
+</script>
+</html>
